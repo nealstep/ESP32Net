@@ -6,15 +6,20 @@
 
 #include "debug_log.hpp"
 
-#define STARTUP_DELAY 2000
-#define LOOP_DELAY 1000
+// debug flag (must be unique)
 #define _DL_MAIN (1 << 0) // 1
+
+namespace Config
+{
+  // delays
+  static constexpr uint16_t startup_delay = 2000;
+}
 
 #include "esp32net.hpp"
 
 void setup()
 {
-  delay(STARTUP_DELAY);
+  delay(Config::startup_delay);
   DEBUG_LOG(_DL_MAIN, "Starting");
   esp32Net.init();
   // do starup here

@@ -5,28 +5,39 @@
 // debug flag (must be unique)
 #define _DL_NET (1 << 1) // 2
 
-// sizes
-#define UDP_MSG_SIZE 200
-#define NET_QUEUE_SIZE 10
-#define UDP_QUEUE_SIZE 10
-
-// delays
-#define MEDIUM_DELAY 250
-#define LONG_DELAY 1000
-
-// counts
-#define TIME_SYNC_ATTEMPTS 5
-
-// urls
-#define INTERNET_CHECK_URL "http://clients3.google.com/generate_204"
-#define NTP_SERVER_1 "0.pool.ntp.org"
-#define NTP_SERVER_2 "1.pool.ntp.org"
-#define NTP_SERVER_3 "2.pool.ntp.org"
-
-
 class ESP32Net
 {
 public:
+    class Config
+    {
+    public:
+        // sizes
+        static constexpr uint8_t udp_msg_size = 200;
+        static constexpr uint8_t net_queue_size = 10;
+        static constexpr uint8_t udp_queue_size = 10;
+
+        // delays
+        static constexpr uint16_t medium_delay = 250;
+        static constexpr uint16_t long_delay = 1000;
+
+        // counts
+        static constexpr uint8_t time_sync_attempts = 5;
+
+        // sites
+        static constexpr const char* internet_check_url = "http://clients3.google.com/generate_204";
+        static constexpr const char* ntp_server_1 = "0.pool.ntp.org";
+        static constexpr const char* ntp_server_2 = "1.pool.ntp.org";
+        static constexpr const char* ntp_server_3 = "2.pool.ntp.org";
+    };
+
+    class Errors
+    {
+    public:
+        static constexpr uint8_t noerr = 0;
+        static constexpr uint8_t create_queue_failed = 1;
+        static constexpr uint8_t time_sync_failed = 2;
+    };
+
     typedef struct
     {
         enum Type
@@ -42,18 +53,14 @@ public:
     typedef struct
     {
         IPAddress remoteIP;
-        char data[UDP_MSG_SIZE];
+        char data[Config::udp_msg_size];
     } UDPMessage;
-
-    static constexpr uint8_t noerr = 0;
-    static constexpr uint8_t create_queue_failed = 1;
-    static constexpr uint8_t time_sync_failed = 2;
 
     QueueHandle_t netQueue;
     QueueHandle_t udpQueue;
 
     // lazy singleton
-    static ESP32Net& getInstance()
+    static ESP32Net &getInstance()
     {
         static ESP32Net instance;
         return instance;
@@ -82,8 +89,8 @@ protected:
     ESP32Net() {};
 };
 
-static ESP32Net& esp32Net = ESP32Net::getInstance();
+static ESP32Net &esp32Net = ESP32Net::getInstance();
 
 void ota_check(void);
 
-// bool check_internet(void) { return esp32Net.check_internet(); }
+// bool check_internet_t(void) { return esp32Net.check_internet(); }
