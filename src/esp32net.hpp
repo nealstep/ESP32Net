@@ -5,8 +5,14 @@
 // debug flag (must be unique)
 #define _DL_NET (1 << 1) // 2
 
+// broadcast ip
+const IPAddress broadcastIP(255, 255, 255, 255);
+
 class ESP32Net
 {
+    static constexpr bool use_aes = USE_AES;
+    static constexpr uint16_t udp_data_port = UDP_DATA_PORT;
+
 public:
     class Config
     {
@@ -24,10 +30,10 @@ public:
         static constexpr uint8_t time_sync_attempts = 5;
 
         // sites
-        static constexpr const char* internet_check_url = "http://clients3.google.com/generate_204";
-        static constexpr const char* ntp_server_1 = "0.pool.ntp.org";
-        static constexpr const char* ntp_server_2 = "1.pool.ntp.org";
-        static constexpr const char* ntp_server_3 = "2.pool.ntp.org";
+        static constexpr const char *internet_check_url = "http://clients3.google.com/generate_204";
+        static constexpr const char *ntp_server_1 = "0.pool.ntp.org";
+        static constexpr const char *ntp_server_2 = "1.pool.ntp.org";
+        static constexpr const char *ntp_server_3 = "2.pool.ntp.org";
     };
 
     class Errors
@@ -36,6 +42,9 @@ public:
         static constexpr uint8_t noerr = 0;
         static constexpr uint8_t create_queue_failed = 1;
         static constexpr uint8_t time_sync_failed = 2;
+        static constexpr uint8_t no_network = 3;
+        static constexpr uint8_t msg_too_big = 4;
+        static constexpr uint8_t no_internet = 5;
     };
 
     typedef struct
@@ -71,12 +80,22 @@ public:
     uint8_t init(void);
     bool have_ip(void) { return ip_addr != INADDR_NONE; }
     void set_ip(IPAddress ip) { ip_addr = ip; }
+    void set_subnet_mask(IPAddress smask)
+    {
+        subnet_mask = smask;
+        subnet_addr = (uint32_t)ip_addr & subnet_mask;
+    }
     IPAddress get_ip(void) { return ip_addr; }
     bool have_internet(void) { return internet_connected; }
     bool check_internet(void);
     bool check_clock(void);
-    // bool check_send_buffer(void);
+    void check_queue(void);
     void send_net_msg(NetMessage::Type type, uint8_t code);
+    uint8_t broadcast_str(const char *data, bool encrypt = use_aes, uint16_t port = udp_data_port)
+    {
+        return send_str(broadcastIP, data, encrypt, port);
+    }
+    uint8_t send_str(IPAddress ip, const char *data, bool encrypt = use_aes, uint16_t = udp_data_port);
 
 protected:
     // flags
@@ -84,6 +103,8 @@ protected:
 
     // ip address
     IPAddress ip_addr = INADDR_NONE;
+    uint32_t subnet_mask = 0;
+    uint32_t subnet_addr = 0;
 
     // hidden creator
     ESP32Net() {};

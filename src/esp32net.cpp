@@ -13,7 +13,7 @@ namespace Constants
     static constexpr const char tz_full[] = TZ_FULL;
     static constexpr const char ssid[] = WIFI_SSID;
     static constexpr const char password[] = WIFI_PASSWORD;
-    static constexpr uint16_t udp_data_port = UDP_DATA_PORT;
+    static constexpr const char hex_key[] = HEX_KEY;
 
     // useful
     static constexpr char eos = '\0';
@@ -31,6 +31,7 @@ namespace State
 
 // async udo
 AsyncUDP audp;
+WiFiUDP wudp;
 
 void wifi_connected(WiFiEvent_t event, WiFiEventInfo_t info)
 {
@@ -84,6 +85,8 @@ void wifi_got_ip(WiFiEvent_t event, WiFiEventInfo_t info)
         ArduinoOTA.begin();
         State::ota_init = true;
     }
+    esp32Net.set_ip(WiFi.localIP());
+    esp32Net.set_subnet_mask(WiFi.subnetMask());
 }
 
 // disconnected event add to queue to handle in main loop and attempt reconnect
@@ -189,4 +192,56 @@ void ESP32Net::send_net_msg(NetMessage::Type type, uint8_t code)
     {
         DEBUG_LOG(_DL_NET, "Failed add got ip event");
     }
+}
+
+void ESP32Net::check_queue(void)
+{
+    if (ip_addr == INADDR_NONE) {
+        // send local queue
+    }
+    if (internet_connected) {
+        // send internet queue
+    }
+    return;
+}
+
+uint8_t ESP32Net::send_str(IPAddress ip, const char *data, bool encrypt, uint16_t port)
+{
+    // are we connected
+    if (ip_addr == INADDR_NONE)
+    {
+        DEBUG_LOG(_DL_NET, "No local netowrk");
+        // queue message needs to have ip and port and data and encrypt
+        return Errors::no_network;
+    }
+
+    // check if local
+    bool local;
+    if ((ip == broadcastIP) || (subnet_addr == (uint32_t)ip & subnet_mask))
+    {
+        local = true;
+    }
+    else
+    {
+        local = false;
+        if (!internet_connected)
+        {
+            DEBUG_LOG(_DL_NET, "No internet");
+            // queue message needs to have ip and port and data and encrypt
+            return Errors::no_internet;
+        }
+    }
+    check_queue();
+
+    DEBUG_LOG(_DL_NET, "send str (%s): %s", ip.toString().c_str(), data);
+    if (strlen(data) >= Config::udp_msg_size)
+    {
+        DEBUG_LOG(_DL_NET, "Data too big for buffer");
+        return Errors::msg_too_big;
+    }
+    DEBUG_LOG(_DL_NET, "packet to %s %d", ip.toString().c_str(), port);
+    wudp.beginPacket(ip, port);
+    wudp.write((const uint8_t *)data, strlen(data));
+    wudp.endPacket();
+    return Errors::noerr;
 }
