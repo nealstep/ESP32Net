@@ -1,0 +1,52 @@
+import configparser
+import binascii
+
+# Load the INI file
+config = configparser.ConfigParser()
+config.read('config.ini')
+
+# Fetch the hex string and convert it to raw bytes
+hex_key = config['Security']['aes_key']
+aes_key_bytes = binascii.unhexlify(hex_key)
+
+# aes_key_bytes is now a 16-byte bytes object, ready for your encryption functions
+print(aes_key_bytes)
+
+
+uint8_t aes_key[16];
+
+// Function to convert a hex character to an integer
+uint8_t nibbleToHex(char nibble) {
+  if (nibble >= '0' && nibble <= '9') return nibble - '0';
+  if (nibble >= 'a' && nibble <= 'f') return nibble - 'a' + 10;
+  if (nibble >= 'A' && nibble <= 'F') return nibble - 'A' + 10;
+  return 0;
+}
+
+// Function to parse the hex string to your uint8_t array
+void parseAesKey(const char* hexString) {
+  for (int i = 0; i < 16; i++) {
+    uint8_t high = nibbleToHex(hexString[i * 2]);
+    uint8_t low = nibbleToHex(hexString[i * 2 + 1]);
+    aes_key[i] = (high << 4) | low;
+  }
+}
+
+void setup() {
+  Serial.begin(9600);
+  
+  // Example hex string that you would read from your INI file
+  const char* config_key = "000102030405060708090A0B0C0D0E0F";
+  parseAesKey(config_key);
+  
+  // Print verification to Serial
+  Serial.print("Parsed AES Key: ");
+  for (int i = 0; i < 16; i++) {
+    Serial.print(aes_key[i], HEX);
+    Serial.print(" ");
+  }
+  Serial.println();
+}
+
+
+
