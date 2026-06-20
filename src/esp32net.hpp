@@ -43,11 +43,11 @@ class ESP32Net {
 
         class Config {
             public:
-                static constexpr uint8_t tz_size = 16;
-                static constexpr uint8_t ssid_size = 24;
-                static constexpr uint8_t passwd_size = 32;
+                static constexpr uint8_t tz_size = 32 + 1;
+                static constexpr uint8_t ssid_size = 32 + 1;
+                static constexpr uint8_t passwd_size = 64 + 1;
 #ifdef USE_AES
-                static constexpr uint8_t hex_key_size = 65;
+                static constexpr uint8_t hex_key_size = 64 + 1;
                 static constexpr uint8_t aes_key_size = 32;
 #endif  // USE_AES
 
