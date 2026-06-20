@@ -16,7 +16,9 @@ from Crypto.Random import get_random_bytes
 
 from socket import AF_INET, SOCK_DGRAM, SO_BROADCAST, SOL_SOCKET
 
+# defaults
 broadcast = "255.255.255.255"
+message = "Hello, UDP Receiver!"
 
 # get ini file
 config = ConfigParser()
@@ -32,7 +34,8 @@ except CPError as e:
     exit(1)
 udp_data_port = config.getint("secret", "udp_data_port")
 hex_key = config.get("secret", "aes_key")
-aes_key = unhexlify(hex_key)
+cleaned = hex_key.removeprefix('"').removesuffix('"')
+aes_key = unhexlify(cleaned)
 
 parser = ArgumentParser(description="UDP Log Listener")
 parser.add_argument(
@@ -52,7 +55,7 @@ parser.add_argument(
     "-m",
     "--message",
     type=str,
-    default="Hello, UDP Receiver!",
+    default=message,
     help="Message to send",
 )
 args = parser.parse_args()
@@ -62,7 +65,7 @@ enc = args.encrypted
 
 sock = socket(AF_INET, SOCK_DGRAM)
 sock.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
-target = (args.target_ip, args.target_port)
+target = (args.ip, args.port)
 mesg = args.message.encode()
 if enc:
     nonce = get_random_bytes(12)

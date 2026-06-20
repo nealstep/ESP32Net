@@ -33,7 +33,8 @@ except CPError as e:
     exit(1)
 udp_data_port = config.getint("secret", "udp_data_port")
 hex_key = config.get("secret", "aes_key")
-aes_key = unhexlify(hex_key)
+cleaned = hex_key.removeprefix('"').removesuffix('"')
+aes_key = unhexlify(cleaned)
 
 parser = ArgumentParser(description="UDP Log Listener")
 parser.add_argument(
@@ -47,7 +48,7 @@ parser.add_argument(
     "-i", "--ip", default=listen_address, help="IP address to bind to"
 )
 parser.add_argument(
-    "-e", "--encrypt", action="store_true", help="Use encryption"
+    "-e", "--encrypted", action="store_true", help="Use encryption"
 )
 args = parser.parse_args()
 ip = args.ip

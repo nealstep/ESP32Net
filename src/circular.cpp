@@ -1,5 +1,7 @@
 #include "circular.hpp"
 
+#ifdef USE_QUEUE
+
 #ifndef Arduino
 #include <cstring>
 #endif  // Arduino
@@ -38,7 +40,8 @@ CircularQueue::CircularQueue(size_t requested_capacity) {
 // enqueue a string
 CircularQueue::Error CircularQueue::enqueue(const char* payload) {
     DEBUG_LOG(_DL_CIR, "CircularQueue::enqueue: %s", payload);
-    if (capacity_ == 0) return CircularQueue::Error::NoQueue;
+    if (capacity_ == 0)
+        return CircularQueue::Error::NoQueue;
 
     size_t len = strlen(payload);
     size_t total_len = len + 1;
@@ -124,3 +127,5 @@ void CircularQueue::write_raw(const char* data, size_t len) {
     }
     write_ptr_ = (write_ptr_ + len) % capacity_;
 }
+
+#endif  // USE_QUEUE
