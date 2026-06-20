@@ -2,7 +2,7 @@
 
 from argparse import ArgumentParser
 from configparser import ConfigParser
-from Crypto.Cipher import AES
+from Crypto.Cipher import AES  # type: ignore
 from datetime import datetime
 from socket import socket
 
@@ -42,13 +42,16 @@ parser.add_argument(
     "--port",
     default=udp_data_port,
     type=int,
-    help="UDP port to listen on",
+    help=f"UDP port to listen on ({udp_data_port})",
 )
 parser.add_argument(
-    "-i", "--ip", default=listen_address, help="IP address to bind to"
+    "-i",
+    "--ip",
+    default=listen_address,
+    help=f"IP address to bind to ({listen_address})",
 )
 parser.add_argument(
-    "-e", "--encrypted", action="store_true", help="Use encryption"
+    "-e", "--encrypted", action="store_true", help="Use encryption (false)"
 )
 args = parser.parse_args()
 ip = args.ip
@@ -65,7 +68,7 @@ while True:
     data, addr = sock.recvfrom(1024)
     asof = datetime.now()
     asof_str = asof.strftime("%Y-%m-%d@%H:%M:%S")
-    if (enc):
+    if enc:
         if len(data) < 28:
             print(f"Malformed packet received from {addr} (Too short).")
             continue
@@ -78,9 +81,7 @@ while True:
             plaintext_str = decrypted_bytes.decode("utf-8")
             print(f"{asof_str}^{addr[0]}^{plaintext_str}")
         except ValueError as e:
-            print(
-                f"Decryption failed or corrupt data from {addr} {e}"
-            )
+            print(f"Decryption failed or corrupt data from {addr} {e}")
         except Exception as e:
             print(f"Unexpected processing error: {e}")
     else:

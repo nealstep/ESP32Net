@@ -7,6 +7,14 @@
 // debug flag (must be unique)
 #define _DL_NET (1 << 1)  // 2
 
+#ifndef GIT_VERSION
+#define GIT_VERSION "Unset"
+#endif  // GIT_VERSION
+
+#ifndef FIRMWARE_VERSION
+#define FIRMWARE_VERSION "Unset"
+#endif
+
 // broadcast ip
 const IPAddress broadcastIP(255, 255, 255, 255);
 
@@ -24,19 +32,35 @@ class ESP32Net {
         static constexpr bool use_aes = USE_AES;
 
     public:
+        class Version {
+                static constexpr const char* const module = "ESP32Net";
+                static constexpr const char* const git_version = GIT_VERSION;
+                static constexpr const char* const firmware_version =
+                    FIRMWARE_VERSION;
+                static constexpr const char* const build_time =
+                    __DATE__ " " __TIME__;
+        };
+
         class Config {
             public:
                 static constexpr uint8_t tz_size = 16;
-                static constexpr uint8_t hex_key_size = 68;
                 static constexpr uint8_t ssid_size = 24;
                 static constexpr uint8_t passwd_size = 32;
+#ifdef USE_AES
+                static constexpr uint8_t hex_key_size = 65;
+                static constexpr uint8_t aes_key_size = 32;
+#endif  // USE_AES
 
                 // variables coming from defines but can be overwritten
                 static uint16_t udp_data_port;
                 static char tz_full[tz_size];
-                static char hex_key[hex_key_size];
                 static char ssid[ssid_size];
                 static char password[passwd_size];
+                static char ota_password[passwd_size];
+#ifdef USE_AES
+                static char hex_key[hex_key_size];
+                static uint8_t aes_key[aes_key_size];
+#endif  // USE_AES
 
             public:
                 // code
@@ -150,6 +174,12 @@ class ESP32Net {
         }
         Error::Code send_str(IPAddress ip, const char* data,
                              bool encrypt = use_aes, uint16_t port = 0);
+        Error::Code update_ssid(const char* new_ssid);
+        Error::Code update_password(const char* new_password);
+        Error::Code update_ota_password(const char* new_ota_password);
+#ifdef USE_AES
+        Error::Code update_aes_key(const char* new_hex_key);
+#endif  // USE_AES
 
     protected:
         // flags
@@ -162,6 +192,11 @@ class ESP32Net {
 
         // hidden creator
         ESP32Net() {};
+
+#ifdef USE_AES
+        uint8_t nibbleToHex(char nibble);
+        void genAesKey();
+#endif  // USE_AES
 };
 
 static ESP32Net& esp32Net = ESP32Net::getInstance();

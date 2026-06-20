@@ -16,9 +16,13 @@
 // initialize config
 uint16_t ESP32Net::Config::udp_data_port = UDP_DATA_PORT;
 char ESP32Net::Config::tz_full[] = TZ_FULL;
-char ESP32Net::Config::hex_key[] = HEX_KEY;
 char ESP32Net::Config::ssid[] = WIFI_SSID;
 char ESP32Net::Config::password[] = WIFI_PASSWORD;
+char ESP32Net::Config::ota_password[] = OTA_PASSWORD;
+#ifdef USE_AES
+char ESP32Net::Config::hex_key[] = HEX_KEY;
+uint8_t ESP32Net::Config::aes_key[ESP32Net::Config::aes_key_size];
+#endif  // USE_AES
 
 // async udo
 AsyncUDP audp;
@@ -64,7 +68,7 @@ void wifi_got_ip(WiFiEvent_t event, WiFiEventInfo_t info) {
     }
     // setup ota
     if (!esp32Net.ota_init) {
-        ArduinoOTA.setPassword(OTA_PASSWD);
+        ArduinoOTA.setPassword(ESP32Net::Config::ota_password);
         ArduinoOTA.begin();
         esp32Net.ota_init = true;
     }
@@ -104,6 +108,9 @@ ESP32Net::Error::Code ESP32Net::init(void) {
 #ifdef USE_QUEUE
 // TODO: #1 Init queues
 #endif  // USE_QUEUE
+#ifdef USE_AES
+    genAesKey();
+#endif  // USE_AES
     WiFi.onEvent(wifi_connected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
     WiFi.onEvent(wifi_got_ip, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
     WiFi.onEvent(wifi_disconnected,
@@ -139,7 +146,7 @@ bool ESP32Net::check_internet(void) {
                     esp32Net.send_net_msg(NetMessage::Type::TimeSyncFailed,
                                           Config::no_code);
             }
-            // check_send_buffer();
+            check_queue();
             return true;
         }
     }
@@ -148,6 +155,7 @@ bool ESP32Net::check_internet(void) {
         esp32Net.send_net_msg(NetMessage::Type::NoInternet, Config::no_code);
     }
     internet_connected = false;
+    check_queue();
     return internet_connected;
 }
 
@@ -236,5 +244,51 @@ ESP32Net::Error::Code ESP32Net::send_str(IPAddress ip, const char* data,
     wudp.endPacket();
     return Error::Code::NoError;
 }
+
+ESP32Net::Error::Code ESP32Net::update_ssid(const char* new_ssid) {
+    return Error::Code::NoError;
+}
+
+ESP32Net::Error::Code ESP32Net::update_password(const char* new_password) {
+    return Error::Code::NoError;
+}
+
+ESP32Net::Error::Code ESP32Net::update_ota_password(
+    const char* new_ota_password) {
+    // copy key
+    ArduinoOTA.setPassword(ESP32Net::Config::ota_password);
+    return Error::Code::NoError;
+}
+
+#ifdef USE_AES
+
+ESP32Net::Error::Code ESP32Net::update_aes_key(const char* new_hex_key) {
+    // copy new_hex_key to hex_key
+    genAesKey();
+    return Error::Code::NoError;
+}
+
+// Function to convert a hex character to an integer
+uint8_t ESP32Net::nibbleToHex(char nibble) {
+    if (nibble >= '0' && nibble <= '9')
+        return nibble - '0';
+    if (nibble >= 'a' && nibble <= 'f')
+        return nibble - 'a' + 10;
+    if (nibble >= 'A' && nibble <= 'F')
+        return nibble - 'A' + 10;
+    return 0;
+}
+
+// Function to parse the hex string to your uint8_t array
+void ESP32Net::genAesKey() {
+    for (int i = 0; i < Config::aes_key_size; i++) {
+        uint8_t high = nibbleToHex(Config::hex_key[i * 2]);
+        uint8_t low = nibbleToHex(Config::hex_key[i * 2 + 1]);
+        // huh why can't we see this
+        Config::aes_key[i] = (high << 4) | low;
+    }
+}
+
+#endif  // USE_AES
 
 #endif  // ARDUINO

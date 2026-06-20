@@ -2,7 +2,7 @@
 
 from argparse import ArgumentParser
 from configparser import ConfigParser
-from Crypto.Cipher import AES
+from Crypto.Cipher import AES  # type: ignore
 from socket import socket
 
 from configparser import Error as CPError
@@ -12,7 +12,7 @@ from os.path import dirname, abspath, isfile
 
 from os.path import join as pjoin
 
-from Crypto.Random import get_random_bytes
+from Crypto.Random import get_random_bytes  # type: ignore
 
 from socket import AF_INET, SOCK_DGRAM, SO_BROADCAST, SOL_SOCKET
 
@@ -43,20 +43,23 @@ parser.add_argument(
     "--port",
     default=udp_data_port,
     type=int,
-    help="UDP port to send to",
+    help=f"UDP port to send to ({udp_data_port})",
 )
 parser.add_argument(
-    "-i", "--ip", default=broadcast, help="IP address to send to"
+    "-i",
+    "--ip",
+    default=broadcast,
+    help=f"IP address to send to ({broadcast})",
 )
 parser.add_argument(
-    "-e", "--encrypted", action="store_true", help="Use encryption"
+    "-e", "--encrypted", action="store_true", help="Use encryption (false)"
 )
 parser.add_argument(
     "-m",
     "--message",
     type=str,
     default=message,
-    help="Message to send",
+    help=f"Message to send ({message})",
 )
 args = parser.parse_args()
 ip = args.ip

@@ -1,5 +1,3 @@
-#include "version.hpp"
-
 #ifdef ARDUINO
 
 #include <Arduino.h>
