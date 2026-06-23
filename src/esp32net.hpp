@@ -149,17 +149,17 @@ class ESP32Net {
 
         Error::Code init(void);
         bool have_ip(void) {
-            return ip_addr != INADDR_NONE;
+            return local_ip != INADDR_NONE;
         }
         void set_ip(IPAddress ip) {
-            ip_addr = ip;
+            local_ip = ip;
         }
         void set_subnet_mask(IPAddress smask) {
             subnet_mask = smask;
-            subnet_addr = (uint32_t)ip_addr & subnet_mask;
+            subnet_addr = (uint32_t)local_ip & subnet_mask;
         }
         IPAddress get_ip(void) {
-            return ip_addr;
+            return local_ip;
         }
         bool have_internet(void) {
             return internet_connected;
@@ -186,7 +186,7 @@ class ESP32Net {
         bool internet_connected = false;
 
         // ip address
-        IPAddress ip_addr = INADDR_NONE;
+        IPAddress local_ip = INADDR_NONE;
         uint32_t subnet_mask = 0;
         uint32_t subnet_addr = 0;
 

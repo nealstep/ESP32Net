@@ -10,7 +10,7 @@
 
 // initialize circular queue with smart allocation
 CircularQueue::CircularQueue(size_t requested_capacity) {
-    DEBUG_LOG(_DL_CIR, "CircularQueue::CircularQueue: %d", requested_capacity);
+    DEBUG_LOG(_DL_CIR, "CircularQueue::CircularQueue: %ld", requested_capacity);
     capacity_ = requested_capacity;
 #ifdef ARDUINO_ARCH_ESP32
     // use psram if possible
@@ -48,7 +48,7 @@ CircularQueue::Error CircularQueue::enqueue(const char* payload) {
 
     // message is bigger than entire buffer
     if (total_len > capacity_ - 1) {
-        DEBUG_LOG(_DL_CIR, "Message too big: %d", total_len);
+        DEBUG_LOG(_DL_CIR, "Message too big: %ld", total_len);
         return CircularQueue::Error::MessageTooBig;
     }
 
@@ -111,13 +111,13 @@ CircularQueue::Error CircularQueue::dequeue(char* buffer, size_t len) {
         }
         sz++;
     }
-    DEBUG_LOG(_DL_CIR, "Dequeued message (%d): %s", ret, buffer);
+    DEBUG_LOG(_DL_CIR, "Dequeued message (%d): %s", static_cast<uint8_t>(ret), buffer);
     return ret;
 }
 
 // low level writing to end of buffer and handling wrap around
 void CircularQueue::write_raw(const char* data, size_t len) {
-    DEBUG_LOG(_DL_CIR, "CircularQueue::write_raw %d", len);
+    DEBUG_LOG(_DL_CIR, "CircularQueue::write_raw %ld", len);
     size_t space_to_edge = capacity_ - write_ptr_;
     if (len <= space_to_edge) {
         memcpy(&buffer_[write_ptr_], data, len);

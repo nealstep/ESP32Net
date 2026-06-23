@@ -16,6 +16,7 @@ namespace Config {
     // delays
     static constexpr uint16_t startup_delay = 2000;
     static constexpr uint16_t medium_delay = 250;
+    static constexpr uint32_t loop_interval = 250000;
 
     // timing information
     static constexpr uint32_t sec_ms = 1000UL;
@@ -28,6 +29,8 @@ namespace Config {
 
 // scheduler
 Scheduler runner;
+
+uint32_t loop_counter = 0;
 
 // task wrappers
 void keepAliveMsg() {
@@ -55,9 +58,13 @@ void die(void) {
 }
 
 void setup(void) {
+#ifdef LOG_SERIAL
+    Serial.begin(SERIAL_SPEED);
+#endif  // LOG_SERIAL
     delay(Config::startup_delay);
     DEBUG_LOG(_DL_MAIN, "Starting");
     // do starup here
+    Serial.println("Starting setup");
     auto err = esp32Net.init();
     if (err != ESP32Net::Error::Code::NoError) {
         DEBUG_LOG(_DL_MAIN, "ESP32Net failed: %s",
@@ -69,7 +76,8 @@ void setup(void) {
         runner.addTask(*task);
         task->enable();
     }
-    DEBUG_LOG(_DL_MAIN, "Stared");
+    DEBUG_LOG(_DL_MAIN, "Started");
+    Serial.println("Finished setup");
 }
 
 // handle network events from queue
@@ -120,9 +128,26 @@ void events_check(void) {
     }
 }
 
+#ifdef IS_M5
+// M5 updates, button handling etc may also go here
+void updateM5(void) {
+    M5.update();
+}
+#endif
+
 void loop(void) {
+    if (loop_counter > Config::loop_interval) {
+        DEBUG_LOG(_DL_MAIN, "looped %d times", loop_counter);
+        loop_counter = 0;
+    }
     events_check();
     ota_check();
+#ifdef IS_M5
+    updateM5();
+#endif
+    // check if jobs need running
+    runner.execute();
+    loop_counter++;
 }
 
 #else  // !ARDUINO

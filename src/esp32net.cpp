@@ -53,7 +53,10 @@ void on_udp_packet_received(void* arg, AsyncUDPPacket packet) {
 
 // got ip event add to queue to handle in main loop
 void wifi_got_ip(WiFiEvent_t event, WiFiEventInfo_t info) {
-    DEBUG_LOG(_DL_NET, "WiFi got ip");
+    IPAddress lip = WiFi.localIP();
+    esp32Net.set_ip(lip);
+    esp32Net.set_subnet_mask(WiFi.subnetMask());
+    DEBUG_LOG(_DL_NET, "WiFi got ip: %s", lip.toString().c_str());
     esp32Net.send_net_msg(ESP32Net::NetMessage::Type::GotIP,
                           ESP32Net::Config::nocode);
     // setup up udp event listener
@@ -72,8 +75,6 @@ void wifi_got_ip(WiFiEvent_t event, WiFiEventInfo_t info) {
         ArduinoOTA.begin();
         esp32Net.ota_init = true;
     }
-    esp32Net.set_ip(WiFi.localIP());
-    esp32Net.set_subnet_mask(WiFi.subnetMask());
 }
 
 // disconnected event add to queue to handle in main loop and attempt reconnect
@@ -121,8 +122,8 @@ ESP32Net::Error::Code ESP32Net::init(void) {
 
 bool ESP32Net::check_internet(void) {
     DEBUG_LOG(_DL_NET, "check_internet (%d): %s", WiFi.status(),
-              ip_addr.toString().c_str());
-    if ((WiFi.status() == WL_CONNECTED) && (ip_addr != INADDR_NONE)) {
+              local_ip.toString().c_str());
+    if ((WiFi.status() == WL_CONNECTED) && (local_ip != INADDR_NONE)) {
         HTTPClient http;
         http.setTimeout(Config::long_delay);
         http.begin(Config::internet_check_url);
@@ -188,7 +189,7 @@ void ESP32Net::send_net_msg(NetMessage::Type type, uint8_t code) {
 
 #ifdef USE_QUEUE
 void ESP32Net::check_queue(void) {
-    if (ip_addr == INADDR_NONE) {
+    if (local_ip == INADDR_NONE) {
         // TODO: #6 Send local queue
     }
     if (internet_connected) {
@@ -207,7 +208,7 @@ ESP32Net::Error::Code ESP32Net::send_str(IPAddress ip, const char* data,
 // TODO: #4 Encrypt payload
 #endif  // USE_AES
     // are we connected
-    if (ip_addr == INADDR_NONE) {
+    if (local_ip == INADDR_NONE) {
         DEBUG_LOG(_DL_NET, "No local netowrk");
 #ifdef USE_QUEUE
 // TODO: #2 queue local message needs to have ip and port and data and encrypt
