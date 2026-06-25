@@ -4,6 +4,10 @@
 
 #include <Arduino.h>
 
+#ifdef USE_QUEUE
+#include "circular_queue.hpp"
+#endif  // USE_QUEUE
+
 // debug flag (must be unique)
 #define _DL_NET (1 << 1)  // 2
 
@@ -22,9 +26,13 @@ const IPAddress broadcastIP(255, 255, 255, 255);
     X(NoError, "No Error")                      \
     X(CreateQueueFailed, "Create Queue Failed") \
     X(TimeSyncFailed, "Time Sync Failed")       \
-    X(NoNetwork, "No Network")                  \
     X(MessageTooBig, "Message Too Big")         \
-    X(NoInternet, "No Internet")
+    X(NoNetwork, "No Network")                  \
+    X(NoInternet, "No Internet")                \
+    X(SerializeError, "Serialize Error")        \
+    X(DeserializeError, "Deserialize Error")    \
+    X(StringTooBig, "String Too Big")           \
+    X(QueueError, "Queue Error")
 
 class ESP32Net {
     protected:
@@ -49,6 +57,14 @@ class ESP32Net {
 #ifdef USE_AES
                 static constexpr uint8_t hex_key_size = 64 + 1;
                 static constexpr uint8_t aes_key_size = 32;
+                static constexpr uint8_t iv_size = 12;
+                static constexpr uint8_t tag_size = 16;
+                static constexpr uint8_t prefix_size = iv_size + tag_size;
+                // variables coming from defines cannot be overwritten
+                static constexpr size_t local_queue_size = LOCAL_QUEUE_SIZE;
+                static constexpr size_t internet_queue_size =
+                    INTERNET_QUEUE_SIZE;
+
 #endif  // USE_AES
 
                 // variables coming from defines but can be overwritten
@@ -114,6 +130,27 @@ class ESP32Net {
 
         };  // namespace Error
 
+        class Message {
+            public:
+                bool encrypt;
+                IPAddress destination;
+                uint16_t port;
+                char str[Config::udp_msg_size];
+
+                // we will coerce IPaddress in a uint32_t for storage
+                static constexpr size_t base_size =
+                    sizeof(bool) + sizeof(uint32_t) + sizeof(uint16_t) +
+                    sizeof(size_t);
+                static constexpr size_t max_size =
+                    base_size + Config::udp_msg_size;
+
+                size_t size(void) {
+                    return base_size + strlen(str) + 1;
+                }
+                bool serialize(uint8_t* data, size_t len);
+                bool deserialize(uint8_t* data, size_t len);
+        };
+
         typedef struct {
                 enum class Type : uint8_t {
                     Connected = 0,
@@ -167,12 +204,12 @@ class ESP32Net {
         bool check_internet(void);
         Error::Code check_clock(void);
         void check_queue(void);
-        void send_net_msg(NetMessage::Type type, uint8_t code);
-        Error::Code broadcast_str(const char* data, bool encrypt = use_aes,
+        void queue_net_msg(NetMessage::Type type, uint8_t code);
+        Error::Code broadcast_str(const char* str, bool encrypt = use_aes,
                                   uint16_t port = 0) {
-            return send_str(broadcastIP, data, encrypt, port);
+            return send_str(broadcastIP, str, encrypt, port);
         }
-        Error::Code send_str(IPAddress ip, const char* data,
+        Error::Code send_str(IPAddress ip, const char* str,
                              bool encrypt = use_aes, uint16_t port = 0);
         Error::Code update_ssid(const char* new_ssid);
         Error::Code update_password(const char* new_password);
@@ -180,6 +217,7 @@ class ESP32Net {
 #ifdef USE_AES
         Error::Code update_aes_key(const char* new_hex_key);
 #endif  // USE_AES
+        void reconnect();
 
     protected:
         // flags
@@ -190,9 +228,20 @@ class ESP32Net {
         uint32_t subnet_mask = 0;
         uint32_t subnet_addr = 0;
 
+#ifdef USE_QUEUE
+        CircularQueue local_q = CircularQueue(Config::local_queue_size);
+        CircularQueue internet_q = CircularQueue(Config::internet_queue_size);
+#endif  // USE_QUEUE
+
         // hidden creator
         ESP32Net() {};
 
+        Error::Code connection_check(IPAddress ip, bool& local);
+#ifdef USE_QUEUE
+        Error::Code queue_message(CircularQueue& q, Message& m);
+        Error::Code empty_queue(CircularQueue& q);
+#endif  // USE_QUEUE
+        void send_message(Message& message);
 #ifdef USE_AES
         uint8_t nibbleToHex(char nibble);
         void genAesKey();

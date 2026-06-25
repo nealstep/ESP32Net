@@ -23,7 +23,13 @@ namespace Config {
     static constexpr uint32_t min_sec = 60UL;
     static constexpr uint32_t send_keep_alive_msg_int = 15 * sec_ms;
     static constexpr uint32_t check_internet_int = 1 * min_sec * sec_ms;
+
+    // sizes
+    static constexpr uint8_t name_size = 24;
+
 }  // namespace Config
+
+char device_name[Config::name_size] = "dummy";
 
 #include "esp32net.hpp"
 
@@ -154,15 +160,17 @@ void loop(void) {
 
 #include <iostream>
 
-#include "circular.hpp"
+#include "circular_queue.hpp"
 
 static constexpr size_t test_buffer_size = 10;
+static constexpr uint16_t test_entries = 3;
 
 #ifndef PIO_UNIT_TESTING
 int main(int argc, char* argv[]) {
-    CircularQueue circularQueue(test_buffer_size);
+    CircularQueue circularQueue(test_buffer_size, test_entries);
     std::cout << "Starting" << std::endl;
-    std::cout << "Free: " << circularQueue.free_space() << std::endl;
+    std::cout << "Free Capacity: " << circularQueue.get_free_capacity() << std::endl;
+    std::cout << "Free Entries: " << circularQueue.get_free_entries() << std::endl;
     std::cout << "Done" << std::endl;
 }
 #endif
