@@ -48,34 +48,32 @@ void test_circular_queue_setup(void) {
     final_checks(cq);
 }
 
-CircularQueue::Error::Code push_code(CircularQueue& cq, const char* mesg,
+Log::Err push_code(CircularQueue& cq, const char* mesg,
                                      Entry mlen) {
     std::cerr << "Push: " << mesg << " [" << mlen << "]" << std::endl;
-    CircularQueue::Error::Code code =
+    Log::Err code =
         cq.push(reinterpret_cast<const uint8_t*>(mesg), mlen);
-    if (code == CircularQueue::Error::Code::NoError)
+    if (code == Log::Err::NoError)
         std::cerr << "Push succeeded" << std::endl;
     else
-        std::cerr << "Push error: " << CircularQueue::Error::toString(code)
-                  << std::endl;
+        std::cerr << "Push error: " << lg.get_message(code) << std::endl;
     return code;
 }
 
-CircularQueue::Error::Code pop_code(CircularQueue& cq, char* mesg, size_t msiz,
+Log::Err pop_code(CircularQueue& cq, char* mesg, size_t msiz,
                                     Entry& mlen) {
-    CircularQueue::Error::Code code =
+    Log::Err code =
         cq.pop(reinterpret_cast<uint8_t*>(mesg), msiz, mlen);
-    if (code == CircularQueue::Error::Code::NoError)
+    if (code == Log::Err::NoError)
         std::cerr << "Pop succeeded:" << mesg << " [" << mlen << "]"
                   << std::endl;
     else
-        std::cerr << "Pop error: " << CircularQueue::Error::toString(code)
-                  << std::endl;
+        std::cerr << "Pop error: " << lg.get_message(code) << std::endl;
     return code;
 }
 
 void test_circular_queue(void) {
-    CircularQueue::Error::Code code;
+    Log::Err code;
     std::cerr << "Test circular queue" << std::endl;
     TEST_ASSERT_NOT_NULL(circularQueue);
     CircularQueue& cq = *circularQueue;
@@ -84,7 +82,7 @@ void test_circular_queue(void) {
     Entry smlen = strlen(simple_mesg) + 1;
     code = push_code(cq, simple_mesg, smlen);
 
-    TEST_ASSERT_EQUAL(CircularQueue::Error::Code::NoError, code);
+    TEST_ASSERT_EQUAL(Log::Err::NoError, code);
     TEST_ASSERT_EQUAL(test_buffer_size - smlen, cq.get_free_capacity());
     TEST_ASSERT_EQUAL(smlen, cq.get_used_capacity());
     TEST_ASSERT_EQUAL(test_entries - 1, cq.get_free_entries());
@@ -95,7 +93,7 @@ void test_circular_queue(void) {
     Entry mlen;
     code = pop_code(cq, mesg, sizeof(mesg), mlen);
 
-    TEST_ASSERT_EQUAL(CircularQueue::Error::Code::NoError, code);
+    TEST_ASSERT_EQUAL(Log::Err::NoError, code);
     TEST_ASSERT_EQUAL(smlen, mlen);
     TEST_ASSERT_EQUAL_STRING(simple_mesg, mesg);
     std::cerr << "Original: [" << simple_mesg << "]" << std::endl;
@@ -107,12 +105,12 @@ void test_circular_queue(void) {
 void do_overrun(CircularQueue& cq, size_t mesg_len, const char* smesg,
                 size_t loops) {
     char mesg[mesg_len];
-    CircularQueue::Error::Code code;
+    Log::Err code;
     for (size_t i = 0; i < loops; i++) {
         snprintf(mesg, mesg_len, smesg, i);
         Entry mlen = strlen(mesg) + 1;
         code = push_code(cq, mesg, mlen);
-        TEST_ASSERT_EQUAL(CircularQueue::Error::Code::NoError, code);
+        TEST_ASSERT_EQUAL(Log::Err::NoError, code);
     }
     if (cq.check_overrun())
         std::cerr << "Overrun Detected" << std::endl;
@@ -126,19 +124,18 @@ void do_overrun(CircularQueue& cq, size_t mesg_len, const char* smesg,
     char rmesg[mesg_len];
     char last_mesg[mesg_len];
     code = pop_code(cq, rmesg, sizeof(rmesg), rmlen);
-    TEST_ASSERT_EQUAL(CircularQueue::Error::Code::NoError, code);
-    while (code != CircularQueue::Error::Code::QueueEmpty) {
+    TEST_ASSERT_EQUAL(Log::Err::NoError, code);
+    while (code != Log::Err::QueueEmpty) {
         rmesg[0] = '\0';
         code = pop_code(cq, rmesg, sizeof(rmesg), rmlen);
-        if (code != CircularQueue::Error::Code::QueueEmpty) {
+        if (code != Log::Err::QueueEmpty) {
             strlcpy(last_mesg, rmesg, sizeof(last_mesg));
-            TEST_ASSERT_EQUAL(CircularQueue::Error::Code::NoError, code);
+            TEST_ASSERT_EQUAL(Log::Err::NoError, code);
         }
     }
 
-    std::cerr << "pop (" << CircularQueue::Error::toString(code)
-              << "): " << rmesg << std::endl;
-    TEST_ASSERT_EQUAL(CircularQueue::Error::Code::QueueEmpty, code);
+    std::cerr << "pop (" << lg.get_message(code) << "): " << rmesg << std::endl;
+    TEST_ASSERT_EQUAL(Log::Err::QueueEmpty, code);
     TEST_ASSERT_EQUAL_STRING("", rmesg);
     std::cerr << "Last original: [" << mesg << "]" << std::endl;
     std::cerr << "Last returned: [" << last_mesg << "]" << std::endl;
@@ -146,7 +143,7 @@ void do_overrun(CircularQueue& cq, size_t mesg_len, const char* smesg,
 }
 
 void test_circular_queue_overrun_buffer(void) {
-    CircularQueue::Error::Code code;
+    Log::Err code;
     std::cerr << "Test circular queue overrrun buffer" << std::endl;
     TEST_ASSERT_NOT_NULL(circularQueue);
     CircularQueue& cq = *circularQueue;
@@ -177,7 +174,7 @@ void test_circular_queue_overrun_buffer(void) {
 }
 
 void test_circular_queue_overrun_records(void) {
-    CircularQueue::Error::Code code;
+    Log::Err code;
     std::cerr << "Test circular queue overrrun records" << std::endl;
     TEST_ASSERT_NOT_NULL(circularQueue);
     CircularQueue& cq = *circularQueue;
@@ -208,7 +205,7 @@ void test_circular_queue_overrun_records(void) {
 }
 
 void test_circular_queue_overrun_both(void) {
-    CircularQueue::Error::Code code;
+    Log::Err code;
     std::cerr << "Test circular queue overrrun records" << std::endl;
     TEST_ASSERT_NOT_NULL(circularQueue);
     CircularQueue& cq = *circularQueue;
@@ -239,7 +236,7 @@ void test_circular_queue_overrun_both(void) {
 }
 
 void test_circular_queue_dequeue(void) {
-    CircularQueue::Error::Code code;
+    Log::Err code;
     std::cerr << "Test circular queue message too big" << std::endl;
     TEST_ASSERT_NOT_NULL(circularQueue);
     CircularQueue& cq = *circularQueue;
@@ -251,7 +248,7 @@ void test_circular_queue_dequeue(void) {
         snprintf(mesg, mesg_len, test_mesg, i);
         Entry mlen = strlen(mesg) + 1;
         code = push_code(cq, mesg, mlen);
-        TEST_ASSERT_EQUAL(CircularQueue::Error::Code::NoError, code);
+        TEST_ASSERT_EQUAL(Log::Err::NoError, code);
     }
     TEST_ASSERT_FALSE(cq.check_overrun());
 
@@ -260,19 +257,19 @@ void test_circular_queue_dequeue(void) {
     char rmesg[mesg_len];
     char last_mesg[mesg_len];
     code = pop_code(cq, rmesg, sizeof(rmesg), rmlen);
-    TEST_ASSERT_EQUAL(CircularQueue::Error::Code::NoError, code);
-    while (code != CircularQueue::Error::Code::QueueEmpty) {
+    TEST_ASSERT_EQUAL(Log::Err::NoError, code);
+    while (code != Log::Err::QueueEmpty) {
         rmesg[0] = '\0';
         code = pop_code(cq, rmesg, sizeof(rmesg), rmlen);
-        if (code != CircularQueue::Error::Code::QueueEmpty) {
+        if (code != Log::Err::QueueEmpty) {
             strlcpy(last_mesg, rmesg, sizeof(last_mesg));
-            TEST_ASSERT_EQUAL(CircularQueue::Error::Code::NoError, code);
+            TEST_ASSERT_EQUAL(Log::Err::NoError, code);
         }
     }
 
-    std::cerr << "pop (" << CircularQueue::Error::toString(code)
+    std::cerr << "pop (" << lg.get_message(code)
               << "): " << rmesg << std::endl;
-    TEST_ASSERT_EQUAL(CircularQueue::Error::Code::QueueEmpty, code);
+    TEST_ASSERT_EQUAL(Log::Err::QueueEmpty, code);
     TEST_ASSERT_EQUAL_STRING("", rmesg);
     std::cerr << "Last original: [" << mesg << "]" << std::endl;
     std::cerr << "Last returned: [" << last_mesg << "]" << std::endl;
@@ -282,7 +279,7 @@ void test_circular_queue_dequeue(void) {
 }
 
 void test_circular_queue_message_too_big(void) {
-    CircularQueue::Error::Code code;
+    Log::Err code;
     std::cerr << "Test circular queue message too big" << std::endl;
     TEST_ASSERT_NOT_NULL(circularQueue);
     CircularQueue& cq = *circularQueue;
@@ -291,7 +288,7 @@ void test_circular_queue_message_too_big(void) {
     big_mesg[sizeof(big_mesg) - 1] = '\0';
     Entry slen = strlen(big_mesg) + 1;
     code = push_code(cq, big_mesg, slen);
-    TEST_ASSERT_EQUAL(CircularQueue::Error::Code::ItemTooBig, code);
+    TEST_ASSERT_EQUAL(Log::Err::ItemTooBig, code);
 
     final_checks(cq);
 }

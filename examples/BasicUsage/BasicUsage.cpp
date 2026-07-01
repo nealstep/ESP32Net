@@ -1,3 +1,7 @@
+
+#include "esp32net.hpp"
+#include "log.hpp"
+
 #ifdef ARDUINO
 
 #include <Arduino.h>
@@ -7,44 +11,35 @@
 #include <M5Unified.h>
 #endif  // IS_M5
 
-#include "debug_log.hpp"
-
-// debug flag (must be unique)
-#define _DL_MAIN (1 << 0)  // 1
+#endif  // Arduino
 
 namespace Config {
-    // delays
-    static constexpr uint16_t startup_delay = 2000;
-    static constexpr uint16_t medium_delay = 250;
-    static constexpr uint32_t loop_interval = 250000;
+// delays
+static constexpr uint16_t startup_delay = 2000;
+static constexpr uint16_t medium_delay = 250;
+static constexpr uint32_t loop_interval = 250000;
 
-    // timing information
-    static constexpr uint32_t sec_ms = 1000UL;
-    static constexpr uint32_t min_sec = 60UL;
-    static constexpr uint32_t send_keep_alive_msg_int = 15 * sec_ms;
-    static constexpr uint32_t check_internet_int = 1 * min_sec * sec_ms;
-
-    // sizes
-    static constexpr uint8_t name_size = 24;
-
+// timing information
+static constexpr uint32_t sec_ms = 1000UL;
+static constexpr uint32_t min_sec = 60UL;
+static constexpr uint32_t send_keep_alive_msg_int = 15 * sec_ms;
+static constexpr uint32_t check_internet_int = 1 * min_sec * sec_ms;
 }  // namespace Config
 
-char device_name[Config::name_size] = "dummy";
+namespace Global {
+uint32_t loop_counter = 0;
+}
 
-#include "esp32net.hpp"
+#ifdef ARDUINO
 
 // scheduler
 Scheduler runner;
 
-uint32_t loop_counter = 0;
-
 // task wrappers
 void keepAliveMsg() {
-    esp32Net.broadcast_str("Keep alive ");
+    esp32Net.broadcast_str(lg.get_message(Log::Note::KeepAlive));
 }
-void checkInternet() {
-    esp32Net.check_internet();
-}
+void checkInternet() { esp32Net.check_internet(); }
 
 // create tasks
 Task taskSendKeepAliveMsg(Config::send_keep_alive_msg_int, TASK_FOREVER,
@@ -57,24 +52,22 @@ Task* tasks[] = {&taskSendKeepAliveMsg, &taskCheckInternet};
 
 // terminal death
 void die(void) {
-    DEBUG_LOG(_DL_MAIN, "died");
+    LOG_E(Log::Uni::Main, Log::Err::Died);
     while (true) {
         delay(Config::medium_delay);
     }
 }
 
-void setup(void) {
+void setup() {
 #ifdef LOG_SERIAL
     Serial.begin(SERIAL_SPEED);
 #endif  // LOG_SERIAL
     delay(Config::startup_delay);
-    DEBUG_LOG(_DL_MAIN, "Starting");
+    LOG_N(Log::Uni::Main, Log::Sev::All, Log::Note::Starting);
     // do starup here
-    Serial.println("Starting setup");
-    auto err = esp32Net.init();
-    if (err != ESP32Net::Error::Code::NoError) {
-        DEBUG_LOG(_DL_MAIN, "ESP32Net failed: %s",
-                  ESP32Net::Error::toString(err));
+    Log::Err err = esp32Net.init();
+    if (err != Log::Err::NoError) {
+        LOG_E(Log::Uni::Main, err);
         die();
     }
     // enable and start tasks
@@ -82,9 +75,9 @@ void setup(void) {
         runner.addTask(*task);
         task->enable();
     }
-    DEBUG_LOG(_DL_MAIN, "Started");
-    Serial.println("Finished setup");
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::Started);
 }
+
 
 // handle network events from queue
 void events_check(void) {
@@ -92,17 +85,18 @@ void events_check(void) {
     if (xQueueReceive(esp32Net.netQueue, &netMsg, 0) == pdTRUE) {
         switch (netMsg.type) {
             case ESP32Net::NetMessage::Type::Connected:
-                DEBUG_LOG(_DL_MAIN, "events_check: connected");
+                LOG_N(Log::Uni::Main, Log::Sev::All, Log::Note::Connected);
                 break;
             case ESP32Net::NetMessage::Type::GotIP:
-                DEBUG_LOG(_DL_MAIN, "events_check: got ip");
+                LOG_N(Log::Uni::Main, Log::Sev::All, Log::Note::GotIP,
+                      esp32Net.get_ip().toString().c_str());
                 esp32Net.check_internet();
                 break;
             case ESP32Net::NetMessage::Type::Disconnected:
-                DEBUG_LOG(_DL_MAIN, "events_check: disconnected");
+                LOG_N(Log::Uni::Main, Log::Sev::All, Log::Note::Disconnected);
                 break;
             case ESP32Net::NetMessage::Type::TimeSynced:
-                DEBUG_LOG(_DL_MAIN, "events_check: time sync");
+                LOG_N(Log::Uni::Main, Log::Sev::All, Log::Note::TimeSynced);
                 if (HAVE_RTC) {
                     struct tm timeinfo;
                     if (getLocalTime(&timeinfo)) {
@@ -113,66 +107,130 @@ void events_check(void) {
                 }
                 break;
             case ESP32Net::NetMessage::Type::InternetConnected:
-                DEBUG_LOG(_DL_MAIN, "events_check: internet connected");
+                LOG_N(Log::Uni::Main, Log::Sev::All, Log::Note::InternetConnected);
                 break;
             case ESP32Net::NetMessage::Type::NoInternet:
-                DEBUG_LOG(_DL_MAIN, "events_check: no internet");
+                LOG_E(Log::Uni::Main, Log::Err::NoInternet);
                 break;
             case ESP32Net::NetMessage::Type::TimeSyncFailed:
-                DEBUG_LOG(_DL_MAIN, "events_check: time sync failed");
+                LOG_E(Log::Uni::Main, Log::Err::TimeSyncFailed);
                 break;
             default:
-                // unknown message
+                LOG_E(Log::Uni::Main, Log::Err::UnknownMessage);
                 break;
         }
     }
     ESP32Net::UDPMessage udpMsg;
     if (xQueueReceive(esp32Net.udpQueue, &udpMsg, 0) == pdTRUE) {
-        DEBUG_LOG(_DL_MAIN, "events_check: received UDP packet from %s: %s",
-                  udpMsg.remoteIP.toString().c_str(), udpMsg.data);
+        LOG_N(Log::Uni::Main, Log::Sev::All, Log::Note::ReceivedUDPPacket,
+              udpMsg.remoteIP.toString().c_str(), udpMsg.data);
         // handle_message(udpMsg.data, udpMsg.remoteIP);
     }
 }
 
 #ifdef IS_M5
 // M5 updates, button handling etc may also go here
-void updateM5(void) {
-    M5.update();
-}
+void updateM5(void) { M5.update(); }
 #endif
 
 void loop(void) {
-    if (loop_counter > Config::loop_interval) {
-        DEBUG_LOG(_DL_MAIN, "looped %d times", loop_counter);
-        loop_counter = 0;
+    if (Global::loop_counter > Config::loop_interval) {
+        LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::LoopedN,
+              Global::loop_counter);
+        Global::loop_counter = 0;
     }
     events_check();
-    ota_check();
+    ota_check();    
 #ifdef IS_M5
     updateM5();
 #endif
     // check if jobs need running
     runner.execute();
-    loop_counter++;
+    Global::loop_counter++;
 }
 
 #else  // !ARDUINO
 
 #include <iostream>
 
-#include "circular_queue.hpp"
-
-static constexpr size_t test_buffer_size = 10;
-static constexpr uint16_t test_entries = 3;
-
 #ifndef PIO_UNIT_TESTING
-int main(int argc, char* argv[]) {
-    CircularQueue circularQueue(test_buffer_size, test_entries);
-    std::cout << "Starting" << std::endl;
-    std::cout << "Free Capacity: " << circularQueue.get_free_capacity() << std::endl;
-    std::cout << "Free Entries: " << circularQueue.get_free_entries() << std::endl;
-    std::cout << "Done" << std::endl;
-}
-#endif
 
-#endif  // ARDUINO
+void test(void) {
+    uint16_t times = 0;
+    LOG_N(Log::Uni::Unnamed, Log::Sev::All, Log::Note::Starting);
+    LOG_N(Log::Uni::Main, Log::Sev::Err, Log::Note::Started);
+    std::cout << std::hex
+              << "Unit: " << static_cast<uint32_t>(lg.get_unit_mask())
+              << std::endl;
+    std::cout << "Sev: " << static_cast<uint16_t>(lg.get_severity())
+              << std::endl;
+    std::cout << std::dec << "loops: " << Global::loop_counter << std::endl;
+    std::cout << "times: " << times << std::endl;
+    while (times < 3) {
+        if (Global::loop_counter > Config::loop_interval) {
+            LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::LoopedN,
+                  Global::loop_counter);
+            Global::loop_counter = 0;
+            times++;
+        }
+        Global::loop_counter++;
+    }
+    LOG_E(Log::Uni::Main, Log::Err::UnexpectedError);
+    LOG(Log::Uni::Main, Log::Sev::Wrn, "A test %d", 45);
+    std::cout << "loops: " << Global::loop_counter << std::endl;
+    std::cout << "times: " << times << std::endl;
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::Done);
+}
+
+int main(int argc, char* argv[]) {
+    // basic log test
+    std::cout << "Everything" << std::endl;
+    test();
+    std::cout << "Only Errors+" << std::endl;
+    lg.set_severity(Log::Sev::Err);
+    test();
+
+    // turn on full logging
+    lg.set_unit_mask(Log::Uni::Last);
+    lg.set_severity(Log::Sev::Dbg);
+
+    // basic circular queue test
+
+    static constexpr size_t test_buffer_size = 10;
+    static constexpr uint16_t test_entries = 3;
+    CircularQueue circularQueue(test_buffer_size, test_entries);
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::Starting);
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::FreeCapacity,
+          circularQueue.get_free_capacity());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::FreeEntries,
+          circularQueue.get_free_entries());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::Done);
+}
+#endif  // PIO_UNIT_TESTING
+
+#endif  // ARDUINO else
+
+void log_output_impl(const char* str, bool error, bool truncated) {
+    if (error) {
+        // there was a an error expanding the string
+#ifdef LOG_SERIAL
+        LOG_SERIAL.printf("Format!: %s\n", str);
+#elifdef LOG_STDERR
+        std::cerr << "Format!: " << str << std::endl;
+#endif  // LOG_SERIAL LOG_STDERR
+    } else if (truncated) {
+        // the line got truncated
+#ifdef LOG_SERIAL
+        LOG_SERIAL.printf("Trunc!: %s\n", str);
+#elifdef LOG_STDERR
+        std::cerr << "Trunc!: " << str << std::endl;
+#endif  // LOG_SERIAL LOG_STDERR
+    } else {
+        // all is good
+#ifdef LOG_SERIAL
+        LOG_SERIAL.println(str);
+#elifdef LOG_STDERR
+        std::cerr << str << std::endl;
+#endif  // LOG_SERIAL LOG_STDERR
+    }
+}

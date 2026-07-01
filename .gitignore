@@ -2,6 +2,10 @@
 secret.*
 
 # ignore slink to examples
+include/debug_log.hpp
+include/messages.hpp
+include/messages_inc.hpp
+include/main_messages.hpp
 src/main.cpp
 
 # python stuff

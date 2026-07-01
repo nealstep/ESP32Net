@@ -7,15 +7,13 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 
-#include "debug_log.hpp"
-
 // initialize config
 uint16_t ESP32Net::Config::udp_data_port = UDP_DATA_PORT;
 char ESP32Net::Config::tz_full[] = TZ_FULL;
 char ESP32Net::Config::ssid[] = WIFI_SSID;
 char ESP32Net::Config::password[] = WIFI_PASSWORD;
 char ESP32Net::Config::ota_password[] = OTA_PASSWORD;
-#ifdef USE_AES
+#if USE_AES
 char ESP32Net::Config::hex_key[] = HEX_KEY;
 uint8_t ESP32Net::Config::aes_key[ESP32Net::Config::aes_key_size];
 #endif  // USE_AES
@@ -25,25 +23,25 @@ AsyncUDP audp;
 WiFiUDP wudp;
 
 void wifi_connected(WiFiEvent_t event, WiFiEventInfo_t info) {
-    DEBUG_LOG(_DL_NET, "WiFi connected");
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::Connected);
     esp32Net.queue_net_msg(ESP32Net::NetMessage::Type::Connected,
                            ESP32Net::Config::nocode);
 }
 
 // udp packet arrived
 void on_udp_packet_received(void* arg, AsyncUDPPacket packet) {
-    DEBUG_LOG(_DL_NET, "UDP packet received");
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::UDPPacket);
     ESP32Net::UDPMessage msg;
     msg.remoteIP = packet.remoteIP();
     size_t len = packet.length();
     if (len + 1 >= ESP32Net::Config::udp_msg_size) {
-        DEBUG_LOG(_DL_NET, "Received UDP packet too big for buffer");
+        LOG_E(Log::Uni::Net, Log::Err::StringTooBig);
         return;
     }
     memcpy(msg.data, packet.data(), len);
     msg.data[len] = ESP32Net::Config::eos;
     if (xQueueSend(esp32Net.udpQueue, &msg, ESP32Net::Config::wait) != pdPASS) {
-        DEBUG_LOG(_DL_NET, "Failed to add received UDP packet to queue");
+        LOG_E(Log::Uni::Net, Log::Err::FailedToAddToQueue);
     }
 }
 
@@ -52,17 +50,17 @@ void wifi_got_ip(WiFiEvent_t event, WiFiEventInfo_t info) {
     IPAddress lip = WiFi.localIP();
     esp32Net.set_ip(lip);
     esp32Net.set_subnet_mask(WiFi.subnetMask());
-    DEBUG_LOG(_DL_NET, "WiFi got ip: %s", lip.toString().c_str());
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::GotIP, lip.toString().c_str());
     esp32Net.queue_net_msg(ESP32Net::NetMessage::Type::GotIP,
                            ESP32Net::Config::nocode);
     // setup up udp event listener
     if (!esp32Net.udp_init) {
         if (audp.listen(UDP_DATA_PORT)) {
-            DEBUG_LOG(_DL_NET, "UDP listener setup");
+            LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::UDPListenerSetup);
             audp.onPacket(on_udp_packet_received);
             esp32Net.udp_init = true;
         } else {
-            DEBUG_LOG(_DL_NET, "Failed to setup UDP listener");
+            LOG_E(Log::Uni::Net, Log::Err::UDPListenerFailed);
         }
     }
     // setup ota
@@ -75,7 +73,7 @@ void wifi_got_ip(WiFiEvent_t event, WiFiEventInfo_t info) {
 
 // disconnected event add to queue to handle in main loop and attempt reconnect
 void wifi_disconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
-    DEBUG_LOG(_DL_NET, "WiFi disconnected");
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::Disconnected);
     esp32Net.set_ip(INADDR_NONE);
     esp32Net.queue_net_msg(ESP32Net::NetMessage::Type::Disconnected,
                            info.wifi_sta_disconnected.reason);
@@ -90,13 +88,14 @@ void ota_check(void) {
 }
 
 bool ESP32Net::Message::serialize(uint8_t* data, size_t len) {
-    DEBUG_LOG(_DL_NET, "Message Serialize: %s", destination.toString().c_str());
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::MessageSerialize,
+                destination.toString().c_str());
     if (len < size()) {
         return false;
     }
     uint8_t* ptr = data;
     uint32_t raw_ip = destination;
-    DEBUG_LOG(_DL_NET, "message: %s", str);
+    LOG_N(Log::Uni::Net, Log::Sev::Dbg, Log::Note::Message, str);
 
     memcpy(ptr, &encrypt, sizeof(bool));
     ptr += sizeof(bool);
@@ -109,7 +108,7 @@ bool ESP32Net::Message::serialize(uint8_t* data, size_t len) {
 }
 
 bool ESP32Net::Message::deserialize(uint8_t* data, size_t len) {
-    DEBUG_LOG(_DL_NET, "Message Deserialize");
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::MessageDesrialize);
     if (len > max_size) {
         return false;
     }
@@ -127,24 +126,28 @@ bool ESP32Net::Message::deserialize(uint8_t* data, size_t len) {
     if (sz >= Config::udp_msg_size) {
         return false;
     }
-    DEBUG_LOG(_DL_NET, "message: %s", str);
+    LOG_N(Log::Uni::Net, Log::Sev::Dbg, Log::Note::Message, str);
     return true;
 }
 
 // setup wifi and event handlers
-ESP32Net::Error::Code ESP32Net::init(void) {
-    DEBUG_LOG(_DL_NET, "ESP32Net init");
+Log::Err ESP32Net::init(void) {
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::ESP32NetInit);
     netQueue = xQueueCreate(Config::net_queue_size, sizeof(NetMessage));
     if (netQueue == NULL) {
-        DEBUG_LOG(_DL_NET, "Failed to create net queue");
-        return Error::Code::CreateQueueFailed;
+        LOG_E(Log::Uni::Net, Log::Err::CreateQueueFailed);
+        return Log::Err::CreateQueueFailed;
     }
     udpQueue = xQueueCreate(Config::udp_queue_size, sizeof(UDPMessage));
     if (udpQueue == NULL) {
-        DEBUG_LOG(_DL_NET, "Failed to create udp queue");
-        return Error::Code::CreateQueueFailed;
+        LOG_E(Log::Uni::Net, Log::Err::CreateQueueFailed);
+        return Log::Err::CreateQueueFailed;
     }
-#ifdef USE_AES
+#if USE_QUEUE
+    local_q = new CircularQueue(Config::local_queue_size);
+    internet_q = new CircularQueue(Config::internet_queue_size);
+#endif  // USE_QUEUE
+#if USE_AES
     genAesKey();
 #endif  // USE_AES
     WiFi.onEvent(wifi_connected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
@@ -152,52 +155,56 @@ ESP32Net::Error::Code ESP32Net::init(void) {
     WiFi.onEvent(wifi_disconnected,
                  WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
     WiFi.begin(Config::ssid, Config::password);
-    return Error::Code::NoError;
+    return Log::Err::NoError;
 }
 
 bool ESP32Net::check_internet(void) {
-    DEBUG_LOG(_DL_NET, "check_internet (%d): %s", WiFi.status(),
-              local_ip.toString().c_str());
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::CheckInternet, WiFi.status(),
+                local_ip.toString().c_str());
     if ((WiFi.status() == WL_CONNECTED) && (local_ip != INADDR_NONE)) {
         HTTPClient http;
         http.setTimeout(Config::long_delay);
         http.begin(Config::internet_check_url);
         int httpCode = http.GET();
         http.end();
-        DEBUG_LOG(_DL_NET, "Internet check HTTP code: %d", httpCode);
+        LOG_N(Log::Uni::Net, Log::Sev::Dbg, Log::Note::InternetCheckCode, httpCode);
         if (httpCode == Config::httpcode) {
             if (!internet_connected) {
-                DEBUG_LOG(_DL_NET, "Internet connection confirmed");
+                LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::InternetConnected);
                 esp32Net.queue_net_msg(NetMessage::Type::InternetConnected,
                                        Config::no_code);
             }
             internet_connected = true;
             struct tm timeinfo;
             if (!getLocalTime(&timeinfo)) {
-                DEBUG_LOG(_DL_NET, "Failed to get local time, checking clock");
-                if (check_clock() == Error::Code::NoError)
+                LOG_N(Log::Uni::Net, Log::Sev::Dbg, Log::Note::CheckingClock);
+                if (check_clock() == Log::Err::NoError)
                     esp32Net.queue_net_msg(NetMessage::Type::TimeSynced,
                                            Config::no_code);
                 else
                     esp32Net.queue_net_msg(NetMessage::Type::TimeSyncFailed,
                                            Config::no_code);
             }
+#if USE_QUEUE
             check_queue();
+#endif  // USE_QUEUE
             return true;
         }
     }
     if (internet_connected) {
-        DEBUG_LOG(_DL_NET, "No internet connection");
+        LOG_E(Log::Uni::Net, Log::Err::NoInternet);
         esp32Net.queue_net_msg(NetMessage::Type::NoInternet, Config::no_code);
     }
     internet_connected = false;
+#if USE_QUEUE
     check_queue();
+#endif  // USE_QUEUE
     return internet_connected;
 }
 
 // sync clock to ntp servers
-ESP32Net::Error::Code ESP32Net::check_clock(void) {
-    DEBUG_LOG(_DL_NET, "clock_check");
+Log::Err ESP32Net::check_clock(void) {
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::CheckClock);
     configTzTime(Config::tz_full, Config::ntp_server_1, Config::ntp_server_2,
                  Config::ntp_server_3);
     struct tm timeinfo;
@@ -206,11 +213,11 @@ ESP32Net::Error::Code ESP32Net::check_clock(void) {
         delay(Config::medium_delay);
         attempts++;
         if (attempts >= Config::time_sync_attempts) {
-            DEBUG_LOG(_DL_NET, "Failed to synchronize time");
-            return Error::Code::TimeSyncFailed;
+            LOG_E(Log::Uni::Net, Log::Err::TimeSyncFailed);
+            return Log::Err::TimeSyncFailed;
         }
     }
-    return Error::Code::NoError;
+    return Log::Err::NoError;
 }
 
 void ESP32Net::queue_net_msg(NetMessage::Type type, uint8_t code) {
@@ -218,24 +225,22 @@ void ESP32Net::queue_net_msg(NetMessage::Type type, uint8_t code) {
     msg.type = type;
     msg.code = code;
     if (xQueueSend(netQueue, &msg, Config::wait) != pdPASS) {
-        DEBUG_LOG(_DL_NET, "Failed add got ip event");
+        LOG_E(Log::Uni::Net, Log::Err::FailedToAddToQueue);
     }
 }
 
-#ifdef USE_QUEUE
+#if USE_QUEUE
 void ESP32Net::check_queue(void) {
-    DEBUG_LOG(_DL_NET, "Check queue");
-    if (local_ip == INADDR_NONE)
-        empty_queue(local_q);
-    if (internet_connected)
-        empty_queue(internet_q);
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::CheckQueue);
+    if (local_ip == INADDR_NONE) empty_queue(*local_q);
+    if (internet_connected) empty_queue(*internet_q);
     return;
 }
 #endif  // USE_QUEUE
 
-ESP32Net::Error::Code ESP32Net::send_str(IPAddress ip, const char* str,
-                                         bool encrypt, uint16_t port) {
-    DEBUG_LOG(_DL_NET, "Send str: %s", str);
+Log::Err ESP32Net::send_str(IPAddress ip, const char* str, bool encrypt,
+                                 uint16_t port) {
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::SendStr, str);
     Message message;
     if (port == 0)
         message.port = Config::udp_data_port;
@@ -247,128 +252,123 @@ ESP32Net::Error::Code ESP32Net::send_str(IPAddress ip, const char* str,
     message.destination = ip;
     size_t sz = strlcpy(message.str, str, Config::udp_msg_size);
     if (sz >= Config::udp_msg_size) {
-        return Error::Code::MessageTooBig;
+        return Log::Err::StringTooBig;
     }
     if (local_ip == INADDR_NONE) {
-        DEBUG_LOG(_DL_NET, "No Network");
-#ifdef USE_QUEUE
-        auto code = queue_message(local_q, message);
-        if (code != Error::Code::NoError)
-            return code;
+        LOG_E(Log::Uni::Net, Log::Err::NoNetwork);
+#if USE_QUEUE
+        Log::Err code = queue_message(*local_q, message);
+        if (code != Log::Err::NoError) return code;
 #endif  // USE_QUEUE
-        return Error::Code::NoNetwork;
+        return Log::Err::NoNetwork;
     } else if ((!local) && (!internet_connected)) {
-        DEBUG_LOG(_DL_NET, "No internet");
-#ifdef USE_QUEUE
-        auto code = queue_message(internet_q, message);
-        if (code != Error::Code::NoError)
-            return code;
+        LOG_E(Log::Uni::Net, Log::Err::NoInternet);
+#if USE_QUEUE
+        Log::Err code = queue_message(*internet_q, message);
+        if (code != Log::Err::NoError) return code;
 #endif  // USE_QUEUE
-        return Error::Code::NoInternet;
+        return Log::Err::NoInternet;
     }
-#ifdef USE_QUEUE
+#if USE_QUEUE
     check_queue();
 #endif  // USE_QUEUE
     send_message(message);
-    return Error::Code::NoError;
+    return Log::Err::NoError;
 }
 
-ESP32Net::Error::Code ESP32Net::update_ssid(const char* new_ssid) {
+Log::Err ESP32Net::update_ssid(const char* new_ssid) {
     // this change requires a reconnect
     size_t sz = strlcpy(Config::ssid, new_ssid, Config::ssid_size);
     if (sz >= Config::ssid_size) {
-        return Error::Code::StringTooBig;
+        return Log::Err::StringTooBig;
     }
-    return Error::Code::NoError;
+    return Log::Err::NoError;
 }
 
-ESP32Net::Error::Code ESP32Net::update_password(const char* new_password) {
+Log::Err ESP32Net::update_password(const char* new_password) {
     // this change requires a reconnect
     size_t sz = strlcpy(Config::password, new_password, Config::passwd_size);
     if (sz >= Config::passwd_size) {
-        return Error::Code::StringTooBig;
+        return Log::Err::StringTooBig;
     }
-    return Error::Code::NoError;
+    return Log::Err::NoError;
 }
 
-ESP32Net::Error::Code ESP32Net::update_ota_password(
+Log::Err ESP32Net::update_ota_password(
     // this change is live
     const char* new_ota_password) {
     size_t sz =
         strlcpy(Config::ota_password, new_ota_password, Config::passwd_size);
     if (sz >= Config::passwd_size) {
-        return Error::Code::StringTooBig;
+        return Log::Err::StringTooBig;
     }
     ArduinoOTA.setPassword(ESP32Net::Config::ota_password);
-    return Error::Code::NoError;
+    return Log::Err::NoError;
 }
 
-#ifdef USE_AES
+#if USE_AES
 
-ESP32Net::Error::Code ESP32Net::update_aes_key(const char* new_hex_key) {
+Log::Err ESP32Net::update_aes_key(const char* new_hex_key) {
     // this change is live
     size_t sz = strlcpy(Config::hex_key, new_hex_key, Config::hex_key_size);
     if (sz >= Config::hex_key_size) {
-        return Error::Code::StringTooBig;
+        return Log::Err::StringTooBig;
     }
     genAesKey();
-    return Error::Code::NoError;
+    return Log::Err::NoError;
 }
 
 #endif  // USE_AES
 
-void ESP32Net::reconnect() {
-    WiFi.disconnect(false, true);
-}
+void ESP32Net::reconnect() { WiFi.disconnect(false, true); }
 
-#ifdef USE_QUEUE
+#if USE_QUEUE
 
-ESP32Net::Error::Code ESP32Net::queue_message(CircularQueue& q, Message& m) {
+Log::Err ESP32Net::queue_message(CircularQueue& q, Message& m) {
     size_t mlen = m.size();
     uint8_t data[mlen];
     if (!m.serialize(data, mlen)) {
-        return Error::Code::SerializeError;
+        return Log::Err::SerializeError;
     }
-    auto code = q.push(data, mlen);
-    if (code != CircularQueue::Error::Code::NoError) {
-        return Error::Code::QueueError;
+    Log::Err code = q.push(data, mlen);
+    if (code != Log::Err::NoError) {
+        return code;
     }
-    return Error::Code::NoError;
+    return Log::Err::NoError;
 }
 
-ESP32Net::Error::Code ESP32Net::empty_queue(CircularQueue& q) {
+Log::Err ESP32Net::empty_queue(CircularQueue& q) {
     uint8_t data[Config::udp_msg_size];
     Entry dlen;
     Message mesg;
 
-    DEBUG_LOG(_DL_NET, "Empty Queue");
-    auto ret = q.pop(data, sizeof(data), dlen);
-    while (ret != CircularQueue::Error::Code::QueueEmpty) {
-        if (ret != CircularQueue::Error::Code::NoError) {
-            DEBUG_LOG(_DL_NET, "Circular Queue Error: %s",
-                      CircularQueue::Error::toString(ret));
-            return Error::Code::QueueError;
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::EmptyingQueue);
+    Log::Err ret = q.pop(data, sizeof(data), dlen);
+    while (ret != Log::Err::QueueEmpty) {
+        if (ret != Log::Err::NoError) {
+            LOG_E(Log::Uni::Net, ret);
+            return ret;
         }
         if (!mesg.deserialize(data, sizeof(data))) {
-            DEBUG_LOG(_DL_NET, "Deserialization Error");
-            return Error::Code::DeserializeError;
+            LOG_E(Log::Uni::Net, Log::Err::DeserializeError);
+            return Log::Err::DeserializeError;
         }
         send_message(mesg);
         ret = q.pop(data, sizeof(data), dlen);
     }
-    return Error::Code::NoError;
+    return Log::Err::NoError;
 }
 
 #endif  // USE_QUEUE
 
 void ESP32Net::send_message(Message& mesg) {
-    DEBUG_LOG(_DL_NET, "send Message (%s:%d): %s",
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::SendMessage,
               mesg.destination.toString().c_str(), mesg.port, mesg.str);
     size_t len = strlen(mesg.str) + 1;
 
-#ifdef USE_AES
+#if USE_AES
     if (mesg.encrypt) {
-        DEBUG_LOG(_DL_NET, "encrypting");
+        LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::Encrypting);
         uint8_t iv[Config::iv_size];
         uint8_t tag[Config::tag_size];
         uint8_t ciphertext[len];
@@ -398,16 +398,13 @@ void ESP32Net::send_message(Message& mesg) {
     wudp.endPacket();
 }
 
-#ifdef USE_AES
+#if USE_AES
 
 // Function to convert a hex character to an integer
 uint8_t ESP32Net::nibbleToHex(char nibble) {
-    if (nibble >= '0' && nibble <= '9')
-        return nibble - '0';
-    if (nibble >= 'a' && nibble <= 'f')
-        return nibble - 'a' + 10;
-    if (nibble >= 'A' && nibble <= 'F')
-        return nibble - 'A' + 10;
+    if (nibble >= '0' && nibble <= '9') return nibble - '0';
+    if (nibble >= 'a' && nibble <= 'f') return nibble - 'a' + 10;
+    if (nibble >= 'A' && nibble <= 'F') return nibble - 'A' + 10;
     return 0;
 }
 
