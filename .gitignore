@@ -7,6 +7,7 @@ include/messages.hpp
 include/messages_inc.hpp
 include/main_messages.hpp
 src/main.cpp
+src/version.h
 
 # python stuff
 .venv

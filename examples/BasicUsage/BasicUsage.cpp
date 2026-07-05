@@ -64,6 +64,22 @@ void setup() {
 #endif  // LOG_SERIAL
     delay(Config::startup_delay);
     LOG_N(Log::Uni::Main, Log::Sev::All, Log::Note::Starting);
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString, "LG module",
+          Log::Version::get_module());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString,
+          "LG git version", Log::Version::get_git_version());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString,
+          "LG firmware version", Log::Version::get_firmware_version());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString,
+          "LG build time", Log::Version::get_build_time());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString, "NT module",
+          ESP32Net::Version::get_module());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString,
+          "NT git version", ESP32Net::Version::get_git_version());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString,
+          "NT firmware version", ESP32Net::Version::get_firmware_version());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString,
+          "NT build time", ESP32Net::Version::get_build_time());
     // do starup here
     Log::Err err = esp32Net.init();
     if (err != Log::Err::NoError) {
@@ -77,7 +93,6 @@ void setup() {
     }
     LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::Started);
 }
-
 
 // handle network events from queue
 void events_check(void) {
@@ -107,7 +122,8 @@ void events_check(void) {
                 }
                 break;
             case ESP32Net::NetMessage::Type::InternetConnected:
-                LOG_N(Log::Uni::Main, Log::Sev::All, Log::Note::InternetConnected);
+                LOG_N(Log::Uni::Main, Log::Sev::All,
+                      Log::Note::InternetConnected);
                 break;
             case ESP32Net::NetMessage::Type::NoInternet:
                 LOG_E(Log::Uni::Main, Log::Err::NoInternet);
@@ -140,7 +156,7 @@ void loop(void) {
         Global::loop_counter = 0;
     }
     events_check();
-    ota_check();    
+    ota_check();
 #ifdef IS_M5
     updateM5();
 #endif
@@ -158,6 +174,22 @@ void loop(void) {
 void test(void) {
     uint16_t times = 0;
     LOG_N(Log::Uni::Unnamed, Log::Sev::All, Log::Note::Starting);
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString, "LG module",
+          Log::Version::get_module());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString,
+          "LG git version", Log::Version::get_git_version());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString,
+          "LG firmware version", Log::Version::get_firmware_version());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString,
+          "LG build time", Log::Version::get_build_time());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString, "NT module",
+          ESP32Net::Version::get_module());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString,
+          "NT git version", ESP32Net::Version::get_git_version());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString,
+          "NT firmware version", ESP32Net::Version::get_firmware_version());
+    LOG_N(Log::Uni::Main, Log::Sev::Inf, Log::Note::SimpleString,
+          "NT build time", ESP32Net::Version::get_build_time());
     LOG_N(Log::Uni::Main, Log::Sev::Err, Log::Note::Started);
     std::cout << std::hex
               << "Unit: " << static_cast<uint32_t>(lg.get_unit_mask())

@@ -6,14 +6,14 @@
 #include "circular_queue.hpp"
 #endif  // USE_QUEUE
 
-#ifdef ARDUINO
-
-#include <Arduino.h>
-
 #include "version.h"
+
+#ifdef ARDUINO
+#include <Arduino.h>
 
 // broadcast ip
 const IPAddress broadcastIP(255, 255, 255, 255);
+#endif  // ARDUINO
 
 class ESP32Net {
    protected:
@@ -22,10 +22,20 @@ class ESP32Net {
 
    public:
     class Version {
+       protected:
         static constexpr const char* const module = "ESP32Net";
         static constexpr const char* const git_version = NT_GIT_VERSION;
-        static constexpr const char* const firmware_version = NT_FIRMWARE_VERSION;
+        static constexpr const char* const firmware_version =
+            NT_FIRMWARE_VERSION;
         static constexpr const char* const build_time = NT_DATETIME_VERSION;
+
+       public:
+        static const char* get_module(void) { return module; }
+        static const char* get_git_version(void) { return git_version; }
+        static const char* get_firmware_version(void) {
+            return firmware_version;
+        }
+        static const char* get_build_time(void) { return build_time; }
     };
 
     class Config {
@@ -87,6 +97,8 @@ class ESP32Net {
         static constexpr const char* ntp_server_3 = "2.pool.ntp.org";
     };
 
+#ifdef ARDUINO
+
     class Message {
        public:
         bool encrypt;
@@ -129,6 +141,8 @@ class ESP32Net {
     QueueHandle_t netQueue;
     QueueHandle_t udpQueue;
 
+#endif  // ARDUINO
+
     // lazy singleton
     static ESP32Net& getInstance() {
         static ESP32Net instance;
@@ -137,6 +151,7 @@ class ESP32Net {
     ESP32Net(const ESP32Net&) = delete;
     ESP32Net& operator=(const ESP32Net&) = delete;
 
+#ifdef ARDUINO
     Log::Err init(void);
     bool have_ip(void) { return local_ip != INADDR_NONE; }
     void set_ip(IPAddress ip) { local_ip = ip; }
@@ -151,11 +166,11 @@ class ESP32Net {
     void check_queue(void);
     void queue_net_msg(NetMessage::Type type, uint8_t code);
     Log::Err broadcast_str(const char* str, bool encrypt = use_aes,
-                                uint16_t port = 0) {
+                           uint16_t port = 0) {
         return send_str(broadcastIP, str, encrypt, port);
     }
-    Log::Err send_str(IPAddress ip, const char* str,
-                           bool encrypt = use_aes, uint16_t port = 0);
+    Log::Err send_str(IPAddress ip, const char* str, bool encrypt = use_aes,
+                      uint16_t port = 0);
     Log::Err update_ssid(const char* new_ssid);
     Log::Err update_password(const char* new_password);
     Log::Err update_ota_password(const char* new_ota_password);
@@ -163,8 +178,10 @@ class ESP32Net {
     Log::Err update_aes_key(const char* new_hex_key);
 #endif  // USE_AES
     void reconnect();
+#endif  // ARDUINO
 
    protected:
+#ifdef ARDUINO
     // flags
     bool internet_connected = false;
 
@@ -177,9 +194,11 @@ class ESP32Net {
     CircularQueue* local_q;
     CircularQueue* internet_q;
 #endif  // USE_QUEUE
-
+#endif  // ARDUINO
     // hidden creator
     ESP32Net() {};
+
+#ifdef ARDUINO
 
     Log::Err connection_check(IPAddress ip, bool& local);
 #if USE_QUEUE
@@ -191,12 +210,13 @@ class ESP32Net {
     uint8_t nibbleToHex(char nibble);
     void genAesKey();
 #endif  // USE_AES
+#endif  // ARDUINO
 };
+
 
 static ESP32Net& esp32Net = ESP32Net::getInstance();
 
+#ifdef ARDUINO
 void ota_check(void);
-
 // bool check_internet_t(void) { return esp32Net.check_internet(); }
-
 #endif  // ARDUINO
