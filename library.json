@@ -1,0 +1,7 @@
+{
+  "name": "ESP32Net",
+  "version": "1.0.0",
+  "build": {
+    "extraScript": "inject_version.py"
+  }
+}
