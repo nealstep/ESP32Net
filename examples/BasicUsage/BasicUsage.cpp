@@ -246,23 +246,41 @@ void log_output_impl(const char* str, bool error, bool truncated) {
     if (error) {
         // there was a an error expanding the string
 #ifdef LOG_SERIAL
-        LOG_SERIAL.printf("Format!: %s\n", str);
+        LOG_SERIAL.printf("!^Format: %s\n", str);
 #elifdef LOG_STDERR
-        std::cerr << "Format!: " << str << std::endl;
+        std::cerr << "!^Format: " << str << std::endl;
 #endif  // LOG_SERIAL LOG_STDERR
+#ifdef LOG_UDP
+        char nstr[ESP32Net::Config::udp_msg_size];
+        snprintf(nstr, sizeof(nstr), "!^Format: %s", str);
+        // esp32Net.broadcast_str(nstr);
+#endif  // LOG_UDP
     } else if (truncated) {
         // the line got truncated
 #ifdef LOG_SERIAL
-        LOG_SERIAL.printf("Trunc!: %s\n", str);
+        LOG_SERIAL.printf("!^Trunc: %s\n", str);
 #elifdef LOG_STDERR
-        std::cerr << "Trunc!: " << str << std::endl;
+        std::cerr << "!^Trunc: " << str << std::endl;
 #endif  // LOG_SERIAL LOG_STDERR
+#ifdef LOG_UDP
+        char nstr[ESP32Net::Config::udp_msg_size];
+        snprintf(nstr, sizeof(nstr), "!^Trunc: %s", str);
+        // esp32Net.broadcast_str(nstr);
+#endif  // LOG_UDP
     } else {
         // all is good
 #ifdef LOG_SERIAL
+        LOG_SERIAL.print("*^");
         LOG_SERIAL.println(str);
 #elifdef LOG_STDERR
-        std::cerr << str << std::endl;
+        std::cerr << "*^" << str << std::endl;
 #endif  // LOG_SERIAL LOG_STDERR
+#ifdef LOG_UDP
+        char nstr[ESP32Net::Config::udp_msg_size];
+        snprintf(nstr, sizeof(nstr), "*^%s", str);
+        // esp32Net.broadcast_str(nstr);
+#endif  // LOG_UDP
     }
 }
+
+// need to add a log that will not use network....
