@@ -50,7 +50,8 @@ void wifi_got_ip(WiFiEvent_t event, WiFiEventInfo_t info) {
     IPAddress lip = WiFi.localIP();
     esp32Net.set_ip(lip);
     esp32Net.set_subnet_mask(WiFi.subnetMask());
-    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::GotIP, lip.toString().c_str());
+    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::GotIP,
+          lip.toString().c_str());
     esp32Net.queue_net_msg(ESP32Net::NetMessage::Type::GotIP,
                            ESP32Net::Config::nocode);
     // setup up udp event listener
@@ -89,7 +90,7 @@ void ota_check(void) {
 
 bool ESP32Net::Message::serialize(uint8_t* data, size_t len) {
     LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::MessageSerialize,
-                destination.toString().c_str());
+          destination.toString().c_str());
     if (len < size()) {
         return false;
     }
@@ -160,17 +161,19 @@ Log::Err ESP32Net::init(void) {
 
 bool ESP32Net::check_internet(void) {
     LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::CheckInternet, WiFi.status(),
-                local_ip.toString().c_str());
+          local_ip.toString().c_str());
     if ((WiFi.status() == WL_CONNECTED) && (local_ip != INADDR_NONE)) {
         HTTPClient http;
         http.setTimeout(Config::long_delay);
         http.begin(Config::internet_check_url);
         int httpCode = http.GET();
         http.end();
-        LOG_N(Log::Uni::Net, Log::Sev::Dbg, Log::Note::InternetCheckCode, httpCode);
+        LOG_N(Log::Uni::Net, Log::Sev::Dbg, Log::Note::InternetCheckCode,
+              httpCode);
         if (httpCode == Config::httpcode) {
             if (!internet_connected) {
-                LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::InternetConnected);
+                LOG_N(Log::Uni::Net, Log::Sev::Inf,
+                      Log::Note::InternetConnected);
                 esp32Net.queue_net_msg(NetMessage::Type::InternetConnected,
                                        Config::no_code);
             }
@@ -230,17 +233,20 @@ void ESP32Net::queue_net_msg(NetMessage::Type type, uint8_t code) {
 }
 
 #if USE_QUEUE
-void ESP32Net::check_queue(void) {
-    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::CheckQueue);
-    if (local_ip == INADDR_NONE) empty_queue(*local_q);
-    if (internet_connected) empty_queue(*internet_q);
-    return;
+Log::Err ESP32Net::check_queue(void) {
+    // LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::CheckQueue);
+    Log::Err code = Log::Err::NoError;
+    if (local_ip == INADDR_NONE) code = empty_queue(*local_q);
+    if (code != Log::Err::NoError) return code;
+    if (internet_connected) code = empty_queue(*internet_q);
+    return code;
 }
 #endif  // USE_QUEUE
 
 Log::Err ESP32Net::send_str(IPAddress ip, const char* str, bool encrypt,
-                                 uint16_t port) {
-    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::SendStr, str);
+                            uint16_t port) {
+    // LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::SendStr, str);
+    Log::Err code = Log::Err::NoError;
     Message message;
     if (port == 0)
         message.port = Config::udp_data_port;
@@ -255,25 +261,26 @@ Log::Err ESP32Net::send_str(IPAddress ip, const char* str, bool encrypt,
         return Log::Err::StringTooBig;
     }
     if (local_ip == INADDR_NONE) {
-        LOG_E(Log::Uni::Net, Log::Err::NoNetwork);
+        // LOG_E(Log::Uni::Net, Log::Err::NoNetwork);
 #if USE_QUEUE
-        Log::Err code = queue_message(*local_q, message);
+        code = queue_message(*local_q, message);
         if (code != Log::Err::NoError) return code;
 #endif  // USE_QUEUE
         return Log::Err::NoNetwork;
     } else if ((!local) && (!internet_connected)) {
-        LOG_E(Log::Uni::Net, Log::Err::NoInternet);
+        // LOG_E(Log::Uni::Net, Log::Err::NoInternet);
 #if USE_QUEUE
-        Log::Err code = queue_message(*internet_q, message);
+        code = queue_message(*internet_q, message);
         if (code != Log::Err::NoError) return code;
 #endif  // USE_QUEUE
         return Log::Err::NoInternet;
     }
 #if USE_QUEUE
-    check_queue();
+    code = check_queue();
+    if (code != Log::Err::NoError) return code;
 #endif  // USE_QUEUE
-    send_message(message);
-    return Log::Err::NoError;
+    code = send_message(message);
+    return code;
 }
 
 Log::Err ESP32Net::update_ssid(const char* new_ssid) {
@@ -342,15 +349,15 @@ Log::Err ESP32Net::empty_queue(CircularQueue& q) {
     Entry dlen;
     Message mesg;
 
-    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::EmptyingQueue);
+    // LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::EmptyingQueue);
     Log::Err ret = q.pop(data, sizeof(data), dlen);
     while (ret != Log::Err::QueueEmpty) {
         if (ret != Log::Err::NoError) {
-            LOG_E(Log::Uni::Net, ret);
+            // LOG_E(Log::Uni::Net, ret);
             return ret;
         }
         if (!mesg.deserialize(data, sizeof(data))) {
-            LOG_E(Log::Uni::Net, Log::Err::DeserializeError);
+            // LOG_E(Log::Uni::Net, Log::Err::DeserializeError);
             return Log::Err::DeserializeError;
         }
         send_message(mesg);
@@ -361,14 +368,15 @@ Log::Err ESP32Net::empty_queue(CircularQueue& q) {
 
 #endif  // USE_QUEUE
 
-void ESP32Net::send_message(Message& mesg) {
-    LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::SendMessage,
-              mesg.destination.toString().c_str(), mesg.port, mesg.str);
+Log::Err ESP32Net::send_message(Message& mesg) {
+    // LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::SendMessage,
+    //   mesg.destination.toString().c_str(), mesg.port, mesg.str);
+    Log::Err code = Log::Err::NoError;    
     size_t len = strlen(mesg.str) + 1;
 
 #if USE_AES
     if (mesg.encrypt) {
-        LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::Encrypting);
+        // LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::Encrypting);
         uint8_t iv[Config::iv_size];
         uint8_t tag[Config::tag_size];
         uint8_t ciphertext[len];
@@ -379,23 +387,55 @@ void ESP32Net::send_message(Message& mesg) {
 
         mbedtls_gcm_context gcm;
         mbedtls_gcm_init(&gcm);
-        mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, Config::aes_key, 256);
-        mbedtls_gcm_crypt_and_tag(&gcm, MBEDTLS_GCM_ENCRYPT, len, iv, 12, NULL,
+        int ret = mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, Config::aes_key, 256);
+        if (ret != 0) {
+            mbedtls_gcm_free(&gcm);
+            return Log::Err::EncryptSetKeyFailed;
+        }
+        ret = mbedtls_gcm_crypt_and_tag(&gcm, MBEDTLS_GCM_ENCRYPT, len, iv, 12, NULL,
                                   0, reinterpret_cast<const uint8_t*>(mesg.str),
                                   ciphertext, 16, tag);
+        if (ret != 0) {
+            mbedtls_gcm_free(&gcm);
+            return Log::Err::EncryptCryptError;
+        }
         mbedtls_gcm_free(&gcm);
-        wudp.beginPacket(mesg.destination, mesg.port);
-        wudp.write(iv, 12);
-        wudp.write(tag, 16);
-        wudp.write(ciphertext, len);
-        wudp.endPacket();
+        ret = wudp.beginPacket(mesg.destination, mesg.port);
+        if (ret != 0) {
+            return Log::Err::UDPBeginPacketFailed;
+        }
+        size_t written = wudp.write(iv, 12);
+        if (written != 12) {
+            return Log::Err::UDPWriteFailed;
+        }
+        written = wudp.write(tag, 16);
+        if (written != 16) {
+            return Log::Err::UDPWriteFailed;
+        }
+        written = wudp.write(ciphertext, len);
+        if (written != len) {
+            return Log::Err::UDPWriteFailed;
+        }
+        ret = wudp.endPacket();
+        if (ret != 0) {
+            return Log::Err::UDPEndPacketFailed;
+        }
         return;
     }
 #endif  // USE_AES
     size_t payload_len = strlen(mesg.str);
-    wudp.beginPacket(mesg.destination, mesg.port);
-    wudp.write(reinterpret_cast<const uint8_t*>(mesg.str), len);
-    wudp.endPacket();
+    int ret = wudp.beginPacket(mesg.destination, mesg.port);
+    if (ret != 0) {
+        return Log::Err::UDPBeginPacketFailed;
+    }
+    size_t written = wudp.write(reinterpret_cast<const uint8_t*>(mesg.str), len);
+    if (written != len) {
+        return Log::Err::UDPWriteFailed;
+    }
+    ret = wudp.endPacket();
+    if (ret != 0) {
+        return Log::Err::UDPEndPacketFailed;
+    }
 }
 
 #if USE_AES

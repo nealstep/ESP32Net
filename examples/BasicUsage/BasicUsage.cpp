@@ -278,7 +278,7 @@ void log_output_impl(const char* str, bool error, bool truncated) {
 #ifdef LOG_UDP
         char nstr[ESP32Net::Config::udp_msg_size];
         snprintf(nstr, sizeof(nstr), "*^%s", str);
-        // esp32Net.broadcast_str(nstr);
+        esp32Net.broadcast_str(nstr);
 #endif  // LOG_UDP
     }
 }

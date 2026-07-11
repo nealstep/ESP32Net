@@ -163,7 +163,7 @@ class ESP32Net {
     bool have_internet(void) { return internet_connected; }
     bool check_internet(void);
     Log::Err check_clock(void);
-    void check_queue(void);
+    Log::Err check_queue(void);
     void queue_net_msg(NetMessage::Type type, uint8_t code);
     Log::Err broadcast_str(const char* str, bool encrypt = use_aes,
                            uint16_t port = 0) {
@@ -205,7 +205,7 @@ class ESP32Net {
     Log::Err queue_message(CircularQueue& q, Message& m);
     Log::Err empty_queue(CircularQueue& q);
 #endif  // USE_QUEUE
-    void send_message(Message& message);
+    Log::Err send_message(Message& message);
 #if USE_AES
     uint8_t nibbleToHex(char nibble);
     void genAesKey();
