@@ -371,7 +371,6 @@ Log::Err ESP32Net::empty_queue(CircularQueue& q) {
 Log::Err ESP32Net::send_message(Message& mesg) {
     // LOG_N(Log::Uni::Net, Log::Sev::Inf, Log::Note::SendMessage,
     //   mesg.destination.toString().c_str(), mesg.port, mesg.str);
-    Log::Err code = Log::Err::NoError;    
     size_t len = strlen(mesg.str) + 1;
 
 #if USE_AES
@@ -420,7 +419,7 @@ Log::Err ESP32Net::send_message(Message& mesg) {
         if (ret != 0) {
             return Log::Err::UDPEndPacketFailed;
         }
-        return;
+        return Log::Err::NoError;
     }
 #endif  // USE_AES
     size_t payload_len = strlen(mesg.str);
@@ -436,6 +435,7 @@ Log::Err ESP32Net::send_message(Message& mesg) {
     if (ret != 0) {
         return Log::Err::UDPEndPacketFailed;
     }
+    return Log::Err::NoError;
 }
 
 #if USE_AES
